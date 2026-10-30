@@ -240,7 +240,6 @@ dialog{width:min(880px,92vw);border:0;padding:0;background:var(--paper);color:va
     <a href="https://wa.me/905543473940?text=Merhaba%2C%20satmak%20istediğim%20bir%20eşya%20var." target="_blank" rel="noopener"><span>◉</span>WhatsApp</a>
     <a class="primary" href="#degerlendirme"><span>↗</span>Değerlendir</a>
   </nav>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
 window.SPOT_SUPABASE = {
   url: 'https://fcjkadtcmeoezkeuhpro.supabase.co',
@@ -284,43 +283,25 @@ render();
   <script>
 (async function loadManagedContent(){
   const config=window.SPOT_SUPABASE||{};
-  if(!config.url||!config.anonKey||!window.supabase)return;
-  const client=window.supabase.createClient(config.url,config.anonKey);
-
-  const [{data:settings,error:settingsError},{data:remoteProducts,error:productsError}]=await Promise.all([
-    client.from('site_settings').select('*').eq('id',1).maybeSingle(),
-    client.from('products').select('*').eq('active',true).order('sort_order',{ascending:true})
-  ]);
-
-  if(!settingsError&&settings){
-    window.spotSettings=settings;
-    document.querySelectorAll('[data-setting="phone_display"]').forEach(el=>el.textContent=settings.phone_display);
-    document.querySelectorAll('[data-setting="working_hours"]').forEach(el=>el.innerHTML=`${escapeHtml(settings.working_hours_weekdays)}<br>${escapeHtml(settings.working_hours_sunday)}`);
-    document.querySelectorAll('[data-setting="service_area_text"]').forEach(el=>el.textContent=settings.service_area_text);
-    document.querySelectorAll('a[href^="tel:"]').forEach(link=>link.href=`tel:+${settings.phone_raw}`);
-    document.querySelectorAll('a[href^="https://wa.me/"]').forEach(link=>{
-      const url=new URL(link.href);
-      link.href=`https://wa.me/${settings.phone_raw}${url.search}`;
-    });
-  }
-
-  if(!productsError&&remoteProducts?.length){
-    const normalized=remoteProducts.map(item=>({
-      id:item.id,
-      name:item.name,
-      category:item.category,
-      price:Number(item.price||0),
-      condition:item.condition,
-      location:item.location,
-      icon:item.icon||'chair',
-      image_url:item.image_url||'',
-      dimensions:item.dimensions||'Belirtilmedi',
-      age:item.age||'Belirtilmedi',
-      description:item.description||''
-    }));
-    products.splice(0,products.length,...normalized);
-    render();
-  }
+  if(!config.url||!config.anonKey)return;
+  const headers={apikey:config.anonKey};
+  async function read(path){const response=await fetch(`${config.url}/rest/v1/${path}`,{headers});if(!response.ok)throw new Error();return response.json()}
+  try{
+    const [settingsRows,remoteProducts]=await Promise.all([read('site_settings?id=eq.1&select=*'),read('products?active=eq.true&select=*&order=sort_order.asc')]);
+    const settings=settingsRows?.[0];
+    if(settings){
+      window.spotSettings=settings;
+      document.querySelectorAll('[data-setting="phone_display"]').forEach(el=>el.textContent=settings.phone_display);
+      document.querySelectorAll('[data-setting="working_hours"]').forEach(el=>el.innerHTML=`${escapeHtml(settings.working_hours_weekdays)}<br>${escapeHtml(settings.working_hours_sunday)}`);
+      document.querySelectorAll('[data-setting="service_area_text"]').forEach(el=>el.textContent=settings.service_area_text);
+      document.querySelectorAll('a[href^="tel:"]').forEach(link=>link.href=`tel:+${settings.phone_raw}`);
+      document.querySelectorAll('a[href^="https://wa.me/"]').forEach(link=>{const url=new URL(link.href);link.href=`https://wa.me/${settings.phone_raw}${url.search}`});
+    }
+    if(remoteProducts?.length){
+      const normalized=remoteProducts.map(item=>({id:item.id,name:item.name,category:item.category,price:Number(item.price||0),condition:item.condition,location:item.location,icon:item.icon||'chair',image_url:item.image_url||'',dimensions:item.dimensions||'Belirtilmedi',age:item.age||'Belirtilmedi',description:item.description||''}));
+      products.splice(0,products.length,...normalized);render();
+    }
+  }catch{}
 })();
 
 </script>
